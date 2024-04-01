@@ -3,7 +3,7 @@
  * Plugin Name: Dokan Ativador
  * Plugin URI: https://github.com/ELColette223/dokan-ativador
  * Description: Ativador de Licença para os plugins Dokan PRO e Dokan Lite.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: ELColette223
  * Author URI: https://github.com/ELColette223/dokan-ativador
  * Text Domain: dokan-ativador
@@ -12,6 +12,8 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+
+define( 'DOKAN_ACTIVATOR_VERSION', '1.3.0' );
 
 include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 
@@ -180,3 +182,54 @@ function dokan_activator_action_links($links) {
     );
     return array_merge($links, $mylinks);
 }
+
+/**
+ * Verifica se há atualizações para o plugin.
+ *
+ * @param object $transient O objeto de atualização do plugin.
+ * @return object O objeto de atualização do plugin.
+ */
+function check_for_plugin_update($transient) {
+    if (empty($transient->checked)) {
+        return $transient;
+    }
+
+    $current_version = DOKAN_ACTIVATOR_VERSION;
+    $remote_version = '0.0.0';
+
+    // Certifique-se de usar a URL da API do GitHub corretamente. A URL abaixo é apenas um exemplo.
+    $request = wp_remote_get('https://api.github.com/repos/ELColette223/dokan-ativador/releases/latest', array(
+        'headers' => array(
+            'Accept' => 'application/vnd.github.v3+json',
+            'User-Agent' => 'WordPress + https://github.com/ELColette223/dokan-ativador'
+        ),
+    ));
+
+    if (!is_wp_error($request) && is_array($request) && isset($request['response']['code']) && $request['response']['code'] == 200) {
+        $response = json_decode(wp_remote_retrieve_body($request));
+        // Verifica se $response é um objeto e se a propriedade tag_name existe
+        if (is_object($response) && isset($response->tag_name)) {
+            if (version_compare($current_version, $response->tag_name, '<')) {
+                $remote_version = $response->tag_name;
+                $package = $response->zipball_url;
+
+                error_log('Nova versão disponível: ' . $remote_version);
+
+                $obj = new stdClass();
+                $obj->slug = 'dokan-ativador';
+                $obj->new_version = $remote_version;
+                $obj->url = $response->html_url; // URL da página da release
+                $obj->package = $package; // URL do download do zip
+                
+                error_log('URL da página da release: ' . $obj->url);
+                error_log('URL do download do zip: ' . $obj->package);
+
+                $transient->response['dokan-ativador/dokan-ativador.php'] = $obj;
+                error_log('Plugin Dokan Ativador atualizado para a versão ' . $remote_version);
+            }
+        }
+    }
+
+    return $transient;
+}
+add_filter('pre_set_site_transient_update_plugins', 'check_for_plugin_update');
